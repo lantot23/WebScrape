@@ -10,6 +10,7 @@ ENV PYTHONUNBUFFERED=1 \
 RUN apt-get update && apt-get install -y \
     chromium \
     chromium-driver \
+    xvfb \
     fonts-liberation \
     libnss3 \
     libx11-xcb1 \
@@ -29,6 +30,7 @@ RUN apt-get update && apt-get install -y \
     ca-certificates \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
+
 
 # Set working directory
 WORKDIR /app
