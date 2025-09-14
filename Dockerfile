@@ -39,7 +39,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy your scraper and CloudflareBypasser module
 COPY CloudflareBypasser.py .
-
+COPY checkscrape.py .
 # Copy any other modules you need
 # COPY your_other_module.py .
 
