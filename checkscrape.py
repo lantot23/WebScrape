@@ -376,10 +376,10 @@ def main():
     isHeadless = os.getenv('HEADLESS', 'false').lower() == 'true'
     
     if isHeadless:
-        # from pyvirtualdisplay import Display
-        # display = Display(visible=0, size=(1920, 1080))  # visible=0 for true headless
-        # display.start()
-        pass
+        from pyvirtualdisplay import Display
+        display = Display(visible=0, size=(1920, 1080))  # visible=0 for true headless
+        display.start()
+        #pass
 
     browser_path = os.getenv('CHROME_PATH', "/usr/bin/google-chrome")
     
@@ -478,8 +478,8 @@ def main():
     finally:
         logging.info('Closing the browser.')
         driver.quit()
-        #if isHeadless:
-            #display.stop()
+        if isHeadless:
+            display.stop()
 
 if __name__ == '__main__':
     main()
