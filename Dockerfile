@@ -38,11 +38,10 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy your scraper and CloudflareBypasser module
-COPY newscrape.py .
 COPY CloudflareBypasser.py .
 
 # Copy any other modules you need
 # COPY your_other_module.py .
 
 # Set default command to run the scraper
-CMD ["python", "newscrape.py"]
+CMD ["python", "checkscrape.py"]
