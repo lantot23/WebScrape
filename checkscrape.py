@@ -331,10 +331,11 @@ def main():
     isHeadless = os.getenv('HEADLESS', 'false').lower() == 'true'
     
     if isHeadless:
-        from pyvirtualdisplay import Display
-        display = Display(visible=0, size=(1920, 1080))  # visible=0 for true headless
-        display.start()
-
+        #from pyvirtualdisplay import Display
+        #display = Display(visible=0, size=(1920, 1080))  # visible=0 for true headless
+        #display.start()
+        pass
+    
     browser_path = os.getenv('CHROME_PATH', "/usr/bin/google-chrome")
     
     # Arguments for headless mode (added headless-specific args)
