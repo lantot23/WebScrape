@@ -337,6 +337,7 @@ def main():
 
     browser_path = os.getenv('CHROME_PATH', "/usr/bin/google-chrome")
     
+    print("Launching Chrome from:", browser_path)
     # Arguments for headless mode (added headless-specific args)
     arguments = [
         "--no-sandbox",
