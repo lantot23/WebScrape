@@ -338,7 +338,7 @@ def choose_categories(categories):
         print(f"{idx} - {cat_name}")
     
     selection = input("Enter the numbers separated by commas (e.g., 0 or 1,3,5): ").strip()
-    selected_ids = []
+    selected_ids = ['2']
 
     if selection == "0":
         selected_ids = list(categories.keys())
@@ -374,7 +374,7 @@ def main():
     }
 
     # Ask user which categories to scrape
-    categories_to_scrape = choose_categories(2)
+    categories_to_scrape = choose_categories(categories)
     
     
     if isHeadless:
