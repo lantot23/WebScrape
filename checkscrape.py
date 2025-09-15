@@ -337,7 +337,7 @@ def choose_categories(categories):
     for idx, (cat_id, cat_name) in enumerate(categories.items(), start=1):
         print(f"{idx} - {cat_name}")
     
-    selection = input("Enter the numbers separated by commas (e.g., 0 or 1,3,5): ").strip()
+    #selection = input("Enter the numbers separated by commas (e.g., 0 or 1,3,5): ").strip()
     selected_ids = ['2']
 
     if selection == "0":
