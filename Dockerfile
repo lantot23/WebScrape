@@ -79,4 +79,5 @@ USER chrome
 COPY start.sh .
 
 # Default command
-CMD ["./start.sh"]
+CMD ["bash", "/app/start.sh"]
+
