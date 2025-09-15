@@ -426,6 +426,8 @@ def main():
             "--deny-permission-prompts",
             "--accept-lang=en-US",
             "--window-size=1920,1080",
+            "--remote-debugging-port=9222",
+            "--remote-debugging-address=0.0.0.0"
         ]
         driver = None
         # Add headless argument if running headless
@@ -435,7 +437,6 @@ def main():
         options = get_chromium_options(browser_path, arguments)
 
         # Initialize the browser
-        time.sleep(5)
         driver = ChromiumPage(addr_or_opts=options)
         
         logging.info('Starting Visions.ca scraper')
@@ -473,13 +474,12 @@ def main():
         save_to_visions(all_products)
         logging.info(f"Scraping completed! Found {len(all_products)} products.")
         
-        
-        
     except Exception as e:
         logging.error("An error occurred: %s", str(e))
     finally:
         logging.info('Closing the browser.')
-        driver.quit()
+        if driver:
+            driver.quit()
         if isHeadless:
             display.stop()
 
