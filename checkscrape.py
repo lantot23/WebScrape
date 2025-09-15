@@ -427,7 +427,7 @@ def main():
             "--accept-lang=en-US",
             "--window-size=1920,1080",
         ]
-        
+        driver = None
         # Add headless argument if running headless
         if isHeadless:
             arguments.append("--headless=new")
