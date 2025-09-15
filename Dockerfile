@@ -71,6 +71,7 @@ COPY CloudflareBypasser.py .
 
 # Set ownership
 RUN chown -R chrome:chrome /app
+RUN mkdir -p /tmp/.X11-unix && chmod 1777 /tmp/.X11-unix
 
 # Switch to non-root user
 USER chrome
