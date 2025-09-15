@@ -374,7 +374,7 @@ def main():
     }
 
     # Ask user which categories to scrape
-    categories_to_scrape = choose_categories(categories)
+    categories_to_scrape = choose_categories(2)
     
     
     if isHeadless:
