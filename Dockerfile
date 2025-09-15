@@ -5,8 +5,8 @@ ENV PYTHONUNBUFFERED=1 \
     HEADLESS=false \
     CHROME_PATH=/usr/bin/chromium \
     DISPLAY=:99 \
-    SCREEN_WIDTH=1366 \
-    SCREEN_HEIGHT=768 \
+    SCREEN_WIDTH=1920 \
+    SCREEN_HEIGHT=1080 \
     SCREEN_DEPTH=24
 
 # Install system dependencies including Chromium and Xvfb
