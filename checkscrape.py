@@ -374,7 +374,7 @@ def main():
     }
 
     # Ask user which categories to scrape
-    categories_to_scrape = choose_categories(categories)
+    #categories_to_scrape = choose_categories(categories)
     
     
     if isHeadless:
@@ -445,7 +445,7 @@ def main():
         logging.info("Current Page: %s", driver.title)
         
         # Scrape selected categories
-        for category_id, category_name in categories_to_scrape.items():
+        for category_id, category_name in categories.items():
             try:
                 category_products = scrape_category(driver, category_id, category_name)
                 all_products.extend(category_products)
