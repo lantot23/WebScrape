@@ -373,44 +373,6 @@ def scrape_category(driver, category_id, category_name):
     return products
 
 def main():
-    isHeadless = os.getenv('HEADLESS', 'false').lower() == 'true'
-    
-    if isHeadless:
-        from pyvirtualdisplay import Display
-        display = Display(visible=0, size=(1920, 1080))  # visible=0 for true headless
-        display.start()
-        #pass
-
-    browser_path = os.getenv('CHROME_PATH', "/usr/bin/google-chrome")
-    
-    print("Launching Chrome from:", browser_path)
-    # Arguments for headless mode (added headless-specific args)
-    arguments = [
-        "--no-sandbox",
-        "--disable-dev-shm-usage",
-        "--disable-gpu",
-        "--no-first-run",
-        "--force-color-profile=srgb",
-        "--metrics-recording-only",
-        "--password-store=basic",
-        "--use-mock-keychain",
-        "--export-tagged-pdf",
-        "--no-default-browser-check",
-        "--disable-background-mode",
-        "--deny-permission-prompts",
-        "--accept-lang=en-US",
-        "--window-size=1920,1080",
-    ]
-    
-    # Add headless argument if running headless
-    if isHeadless:
-        arguments.append("--headless=new")
-
-    options = get_chromium_options(browser_path, arguments)
-
-    # Initialize the browser
-    driver = ChromiumPage(addr_or_opts=options)
-    
     # Define categories to scrape
     main_categories = {
         36: "Television",
@@ -436,6 +398,45 @@ def main():
     all_products = []
     
     try:
+        
+        isHeadless = os.getenv('HEADLESS', 'false').lower() == 'true'
+    
+        if isHeadless:
+            from pyvirtualdisplay import Display
+            display = Display(visible=0, size=(1920, 1080))  # visible=0 for true headless
+            display.start()
+            #pass
+
+        browser_path = os.getenv('CHROME_PATH', "/usr/bin/google-chrome")
+        
+        print("Launching Chrome from:", browser_path)
+        # Arguments for headless mode (added headless-specific args)
+        arguments = [
+            "--no-sandbox",
+            "--disable-dev-shm-usage",
+            "--disable-gpu",
+            "--no-first-run",
+            "--force-color-profile=srgb",
+            "--metrics-recording-only",
+            "--password-store=basic",
+            "--use-mock-keychain",
+            "--export-tagged-pdf",
+            "--no-default-browser-check",
+            "--disable-background-mode",
+            "--deny-permission-prompts",
+            "--accept-lang=en-US",
+            "--window-size=1920,1080",
+        ]
+        
+        # Add headless argument if running headless
+        if isHeadless:
+            arguments.append("--headless=new")
+
+        options = get_chromium_options(browser_path, arguments)
+
+        # Initialize the browser
+        driver = ChromiumPage(addr_or_opts=options)
+        
         logging.info('Starting Visions.ca scraper')
         
         # First, navigate to the main page to bypass Cloudflare if needed
