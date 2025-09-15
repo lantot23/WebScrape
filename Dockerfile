@@ -77,5 +77,9 @@ USER chrome
 COPY start.sh .
 RUN chmod +x start.sh
 
+# Switch to non-root user
+USER chrome
+
+
 # Default command
 CMD ["./start.sh"]
