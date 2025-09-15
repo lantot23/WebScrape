@@ -69,17 +69,14 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY checkscrape.py .
 COPY CloudflareBypasser.py .
 
-# Set ownership and switch user
+# Set ownership
 RUN chown -R chrome:chrome /app
-USER chrome
-
-# Copy startup script
-COPY start.sh .
-RUN chmod +x start.sh
 
 # Switch to non-root user
 USER chrome
 
+# Copy startup script (already executable from host)
+COPY start.sh .
 
 # Default command
 CMD ["./start.sh"]
