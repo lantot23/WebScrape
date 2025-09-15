@@ -1,5 +1,6 @@
 FROM python:3.11-slim
 
+# Environment variables
 ENV PYTHONUNBUFFERED=1 \
     HEADLESS=false \
     CHROME_PATH=/usr/bin/chromium \
@@ -8,14 +9,11 @@ ENV PYTHONUNBUFFERED=1 \
     SCREEN_HEIGHT=768 \
     SCREEN_DEPTH=24
 
-# Install system dependencies including Xvfb and Chromium
+# Install system dependencies including Chromium and Xvfb
 RUN apt-get update && apt-get install -y \
     chromium \
     chromium-driver \
     xvfb \
-    fluxbox \
-    x11vnc \
-    xterm \
     libasound2 \
     libatk1.0-0 \
     libatk-bridge2.0-0 \
@@ -55,7 +53,7 @@ RUN apt-get update && apt-get install -y \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
-# Create a non-root user for security
+# Create a non-root user
 RUN groupadd -r chrome && useradd -r -g chrome -G audio,video chrome \
     && mkdir -p /home/chrome/Downloads \
     && chown -R chrome:chrome /home/chrome
@@ -63,22 +61,21 @@ RUN groupadd -r chrome && useradd -r -g chrome -G audio,video chrome \
 # Create app directory
 WORKDIR /app
 
-# Copy requirements and install Python dependencies
+# Copy Python dependencies
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy application files
+# Copy application code
 COPY checkscrape.py .
 COPY CloudflareBypasser.py .
 
-# Set ownership
+# Set ownership and switch user
 RUN chown -R chrome:chrome /app
-
-# Switch to non-root user
 USER chrome
 
-# Startup script
+# Copy startup script
 COPY start.sh .
 RUN chmod +x start.sh
 
+# Default command
 CMD ["./start.sh"]
