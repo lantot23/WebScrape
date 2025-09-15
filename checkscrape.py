@@ -10,6 +10,7 @@ from DrissionPage import ChromiumPage, ChromiumOptions
 from bs4 import BeautifulSoup
 import psycopg2
 from psycopg2.extras import execute_values
+import shutil, sys
 
 load_dotenv()
 
@@ -328,6 +329,11 @@ def scrape_category(driver, category_id, category_name):
     return products
 
 def main():
+    print("Python:", sys.version)
+    print("DrissionPage version:", __import__('DrissionPage').__version__)
+    print("CHROME_PATH env:", os.getenv('CHROME_PATH'))
+    print("Which chromium:", shutil.which("chromium") or shutil.which("chromium-browser") or shutil.which("google-chrome"))
+
     isHeadless = os.getenv('HEADLESS', 'false').lower() == 'true'
     
     if isHeadless:
