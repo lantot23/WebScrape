@@ -10,8 +10,6 @@ XVFB_PID=$!
 # Give Xvfb a moment to initialize
 sleep 2
 
-# Run the Python scraper
-python checkscrape.py
 
 # Kill Xvfb after script finishes
 kill $XVFB_PID
