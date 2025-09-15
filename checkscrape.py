@@ -435,6 +435,7 @@ def main():
         options = get_chromium_options(browser_path, arguments)
 
         # Initialize the browser
+        time.sleep(5)
         driver = ChromiumPage(addr_or_opts=options)
         
         logging.info('Starting Visions.ca scraper')
