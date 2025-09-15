@@ -102,11 +102,15 @@ def get_chromium_options(browser_path: str, arguments: list) -> ChromiumOptions:
     """
     Configures and returns Chromium options.
     """
-    options = ChromiumOptions().auto_port()
+    options = ChromiumOptions()
     options.set_paths(browser_path=browser_path)
+    options.set_argument("--remote-debugging-port=9222")
     for argument in arguments:
         options.set_argument(argument)
+    print("Chromium options:", options.arguments)
+
     return options
+
 
 def extract_product_data(product, category):
     """
