@@ -107,8 +107,7 @@ def get_chromium_options(browser_path: str, arguments: list) -> ChromiumOptions:
     options.set_argument("--remote-debugging-port=9222")
     for argument in arguments:
         options.set_argument(argument)
-    print("Chromium options:", options.arguments)
-
+    
     return options
 
 
@@ -332,50 +331,34 @@ def scrape_category(driver, category_id, category_name):
     logging.info(f"Successfully extracted {len(products)} products from {category_name}")
     return products
 
-def main():
-    print("Python:", sys.version)
-    print("DrissionPage version:", __import__('DrissionPage').__version__)
-    print("CHROME_PATH env:", os.getenv('CHROME_PATH'))
-    print("Which chromium:", shutil.which("chromium") or shutil.which("chromium-browser") or shutil.which("google-chrome"))
+def choose_categories(categories):
+    print("Select categories to scrape:")
+    print("0 - All")
+    for idx, (cat_id, cat_name) in enumerate(categories.items(), start=1):
+        print(f"{idx} - {cat_name}")
+    
+    selection = input("Enter the numbers separated by commas (e.g., 0 or 1,3,5): ").strip()
+    selected_ids = []
 
+    if selection == "0":
+        selected_ids = list(categories.keys())
+    else:
+        try:
+            nums = [int(x.strip()) for x in selection.split(",")]
+            for n in nums:
+                if 1 <= n <= len(categories):
+                    selected_ids.append(list(categories.keys())[n-1])
+        except ValueError:
+            print("Invalid input. Defaulting to All categories.")
+            selected_ids = list(categories.keys())
+    
+    print(f"Selected categories: {[categories[i] for i in selected_ids]}")
+    return {cat_id: categories[cat_id] for cat_id in selected_ids}
+
+def main():
     isHeadless = os.getenv('HEADLESS', 'false').lower() == 'true'
     
-    if isHeadless:
-        from pyvirtualdisplay import Display
-        display = Display(visible=0, size=(1920, 1080))  # visible=0 for true headless
-        display.start()
-
-    browser_path = os.getenv('CHROME_PATH', "/usr/bin/chromium")
-    
-    # Arguments for headless mode (added headless-specific args)
-    arguments = [
-        "--no-sandbox",
-        "--disable-dev-shm-usage",
-        "--disable-gpu",
-        "--no-first-run",
-        "--force-color-profile=srgb",
-        "--metrics-recording-only",
-        "--password-store=basic",
-        "--use-mock-keychain",
-        "--export-tagged-pdf",
-        "--no-default-browser-check",
-        "--disable-background-mode",
-        "--deny-permission-prompts",
-        "--accept-lang=en-US",
-        "--window-size=1920,1080",
-    ]
-    
-    # Add headless argument if running headless
-    if isHeadless:
-        arguments.append("--headless=new")
-
-    options = get_chromium_options(browser_path, arguments)
-
-    # Initialize the browser
-    driver = ChromiumPage(addr_or_opts=options)
-    
-    # Define categories to scrape
-    main_categories = {
+    categories = {
         36: "Television",
         40: "Home Audio", 
         16: "Laptops",
@@ -389,25 +372,68 @@ def main():
         18: "Major Appliances",
         19: "Small Appliances"
     }
-    exclude_categories = {
-        36: "Television",
-        18: "Major Appliances"
-    }
-    
-    categories = {k: v for k, v in main_categories.items() if k not in exclude_categories}
 
-    all_products = []
+    # Ask user which categories to scrape
+    categories_to_scrape = choose_categories(categories)
     
+    
+    if isHeadless:
+        from pyvirtualdisplay import Display
+        display = Display(visible=0, size=(1920, 1080))
+        display.start()
+
+    browser_path = os.getenv('CHROME_PATH', "/usr/bin/chromium")
+    
+    arguments = [
+        "--no-sandbox",
+        "--disable-dev-shm-usage",
+        "--disable-gpu",  # Still disable GPU for stability
+        "--window-size=1920,1080",
+        "--start-maximized",
+        "--disable-extensions",
+        "--disable-background-networking",
+        "--disable-default-apps",
+        "--disable-sync",
+        "--disable-translate",
+        "--disable-features=VizDisplayCompositor",
+        "--disable-web-security",
+        "--disable-notifications",
+        "--disable-popup-blocking",
+        "--disable-prompt-on-repost",
+        "--remote-debugging-port=9222",
+        "--remote-debugging-address=0.0.0.0",
+        "--no-first-run",
+        "--metrics-recording-only",
+        "--password-store=basic",
+        "--use-mock-keychain",
+        "--no-default-browser-check",
+        "--user-data-dir=/tmp/chrome-user-data",
+        "--disable-blink-features=AutomationControlled",
+        "--enable-automation",
+        "--disable-features=IsolateOrigins,site-per-process",
+        "--disable-site-isolation-trials",
+        "--lang=en-US",
+        "--allow-running-insecure-content",
+        "--autoplay-policy=no-user-gesture-required",
+    ]
+
+    
+    if isHeadless:
+        arguments.append("--headless=new")
+
+    options = get_chromium_options(browser_path, arguments)
+    driver = ChromiumPage(addr_or_opts=options)
+    
+    all_products = []
+
     try:
         logging.info('Starting Visions.ca scraper')
-        
-        # First, navigate to the main page to bypass Cloudflare if needed
         logging.info('Navigating to the main page.')
         logging.info(os.getenv("VISIONSITE"))
         driver.get(os.getenv("VISIONSITE"))
         time.sleep(3)
 
-        # Try to bypass Cloudflare if it's detected
+        # Cloudflare bypass
         try:
             logging.info('Attempting Cloudflare bypass.')
             cf_bypasser = CloudflareBypasser(driver)
@@ -415,26 +441,20 @@ def main():
             logging.info("Cloudflare bypass completed!")
         except Exception as e:
             logging.warning(f"Cloudflare bypass may have failed: {e}")
-        
+
         logging.info("Current Page: %s", driver.title)
         
-        # Scrape each category
-        for category_id, category_name in categories.items():
+        # Scrape selected categories
+        for category_id, category_name in categories_to_scrape.items():
             try:
                 category_products = scrape_category(driver, category_id, category_name)
                 all_products.extend(category_products)
                 logging.info(f"Completed scraping {category_name}. Total products so far: {len(all_products)}")
             except Exception as e:
                 logging.error(f"Error scraping category {category_name}: {e}")
-        
-        # Save all products to JSON file
-        #with open('visionsclearance.json', 'w', encoding='utf-8') as f:
-            #json.dump(all_products, f, indent=2, ensure_ascii=False)
-        #logging.info("Data saved to visionsclearance.json")
+
         save_to_visions(all_products)
         logging.info(f"Scraping completed! Found {len(all_products)} products.")
-        
-        
         
     except Exception as e:
         logging.error("An error occurred: %s", str(e))
@@ -443,6 +463,7 @@ def main():
         driver.quit()
         if isHeadless:
             display.stop()
+
 
 if __name__ == '__main__':
     main()

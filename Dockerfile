@@ -1,32 +1,53 @@
 FROM python:3.11-slim
 
 ENV PYTHONUNBUFFERED=1 \
-    HEADLESS=true \
-    CHROME_PATH=/usr/bin/chromium
+    HEADLESS=false \
+    CHROME_PATH=/usr/bin/chromium \
+    DISPLAY=:99 \
+    SCREEN_WIDTH=1366 \
+    SCREEN_HEIGHT=768 \
+    SCREEN_DEPTH=24
 
-# Install Chromium + dependencies
+# Install system dependencies including Xvfb and Chromium
 RUN apt-get update && apt-get install -y \
     chromium \
     chromium-driver \
     xvfb \
+    fluxbox \
+    x11vnc \
+    xterm \
     libasound2 \
     libatk1.0-0 \
     libatk-bridge2.0-0 \
     libatspi2.0-0 \
-    libxrandr2 \
+    libcairo2 \
+    libcups2 \
+    libdbus-1-3 \
+    libdrm2 \
+    libexpat1 \
+    libfontconfig1 \
     libgbm1 \
-    fonts-liberation \
+    libgdk-pixbuf2.0-0 \
+    libglib2.0-0 \
+    libgtk-3-0 \
+    libnspr4 \
     libnss3 \
+    libpango-1.0-0 \
+    libpangocairo-1.0-0 \
+    libx11-6 \
     libx11-xcb1 \
+    libxcb1 \
     libxcomposite1 \
     libxcursor1 \
     libxdamage1 \
     libxext6 \
     libxfixes3 \
     libxi6 \
+    libxrandr2 \
+    libxrender1 \
+    libxss1 \
     libxtst6 \
-    libpangocairo-1.0-0 \
-    libgtk-3-0 \
+    fonts-liberation \
     wget \
     curl \
     unzip \
@@ -34,12 +55,30 @@ RUN apt-get update && apt-get install -y \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
+# Create a non-root user for security
+RUN groupadd -r chrome && useradd -r -g chrome -G audio,video chrome \
+    && mkdir -p /home/chrome/Downloads \
+    && chown -R chrome:chrome /home/chrome
+
+# Create app directory
 WORKDIR /app
 
+# Copy requirements and install Python dependencies
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
+# Copy application files
 COPY checkscrape.py .
 COPY CloudflareBypasser.py .
 
-CMD ["python", "checkscrape.py"]
+# Set ownership
+RUN chown -R chrome:chrome /app
+
+# Switch to non-root user
+USER chrome
+
+# Startup script
+COPY start.sh .
+RUN chmod +x start.sh
+
+CMD ["./start.sh"]
