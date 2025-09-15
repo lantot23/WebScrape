@@ -340,7 +340,7 @@ def choose_categories(categories):
     #selection = input("Enter the numbers separated by commas (e.g., 0 or 1,3,5): ").strip()
     selected_ids = ['2']
 
-    if selection == "0":
+    if 1 == "0":
         selected_ids = list(categories.keys())
     else:
         try:
