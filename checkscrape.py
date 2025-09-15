@@ -99,57 +99,12 @@ def save_to_visions(json_data):
 
 def get_chromium_options(browser_path: str, arguments: list) -> ChromiumOptions:
     """
-    Configures and returns Chromium options with better WebSocket handling.
+    Configures and returns Chromium options.
     """
     options = ChromiumOptions().auto_port()
     options.set_paths(browser_path=browser_path)
-    
-    # Add essential arguments for better stability
-    essential_args = [
-        "--no-sandbox",
-        "--disable-dev-shm-usage",
-        "--disable-gpu",
-        "--disable-software-rasterizer",
-        "--disable-extensions",
-        "--disable-background-networking",
-        "--disable-default-apps",
-        "--disable-sync",
-        "--disable-translate",
-        "--disable-features=VizDisplayCompositor",
-        "--disable-setuid-sandbox",
-        "--disable-web-security",
-        "--disable-background-timer-throttling",
-        "--disable-renderer-backgrounding",
-        "--disable-backgrounding-occluded-windows",
-        "--disable-breakpad",
-        "--disable-client-side-phishing-detection",
-        "--disable-crash-reporter",
-        "--disable-ipc-flooding-protection",
-        "--disable-notifications",
-        "--disable-popup-blocking",
-        "--disable-prompt-on-repost",
-        "--remote-debugging-port=9222",
-        "--remote-debugging-address=0.0.0.0",
-        "--use-gl=swiftshader",
-        "--single-process",
-        "--no-zygote",
-        "--no-first-run",
-        "--metrics-recording-only",
-        "--password-store=basic",
-        "--use-mock-keychain",
-        "--no-default-browser-check",
-        "--window-size=1920,1080",
-        "--user-data-dir=/tmp/chrome-user-data",
-        "--disable-blink-features=AutomationControlled",
-        "--enable-automation"
-    ]
-    
-    for arg in essential_args + arguments:
-        options.set_argument(arg)
-    
-    # Remove duplicate arguments
-    options._arguments = list(set(options._arguments))
-    
+    for argument in arguments:
+        options.set_argument(argument)
     return options
 
 def extract_product_data(product, category):
@@ -373,6 +328,42 @@ def scrape_category(driver, category_id, category_name):
     return products
 
 def main():
+    isHeadless = os.getenv('HEADLESS', 'false').lower() == 'true'
+    
+    if isHeadless:
+        from pyvirtualdisplay import Display
+        display = Display(visible=0, size=(1920, 1080))  # visible=0 for true headless
+        display.start()
+
+    browser_path = os.getenv('CHROME_PATH', "/usr/bin/chromium")
+    
+    # Arguments for headless mode (added headless-specific args)
+    arguments = [
+        "--no-sandbox",
+        "--disable-dev-shm-usage",
+        "--disable-gpu",
+        "--no-first-run",
+        "--force-color-profile=srgb",
+        "--metrics-recording-only",
+        "--password-store=basic",
+        "--use-mock-keychain",
+        "--export-tagged-pdf",
+        "--no-default-browser-check",
+        "--disable-background-mode",
+        "--deny-permission-prompts",
+        "--accept-lang=en-US",
+        "--window-size=1920,1080",
+    ]
+    
+    # Add headless argument if running headless
+    if isHeadless:
+        arguments.append("--headless=new")
+
+    options = get_chromium_options(browser_path, arguments)
+
+    # Initialize the browser
+    driver = ChromiumPage(addr_or_opts=options)
+    
     # Define categories to scrape
     main_categories = {
         36: "Television",
@@ -398,47 +389,6 @@ def main():
     all_products = []
     
     try:
-        
-        isHeadless = os.getenv('HEADLESS', 'false').lower() == 'true'
-    
-        if isHeadless:
-            from pyvirtualdisplay import Display
-            display = Display(visible=0, size=(1920, 1080))  # visible=0 for true headless
-            display.start()
-            #pass
-
-        browser_path = os.getenv('CHROME_PATH', "/usr/bin/google-chrome")
-        
-        print("Launching Chrome from:", browser_path)
-        # Arguments for headless mode (added headless-specific args)
-        arguments = [
-            "--no-sandbox",
-            "--disable-dev-shm-usage",
-            "--disable-gpu",
-            "--no-first-run",
-            "--force-color-profile=srgb",
-            "--metrics-recording-only",
-            "--password-store=basic",
-            "--use-mock-keychain",
-            "--export-tagged-pdf",
-            "--no-default-browser-check",
-            "--disable-background-mode",
-            "--deny-permission-prompts",
-            "--accept-lang=en-US",
-            "--window-size=1920,1080",
-            "--remote-debugging-port=9222",
-            "--remote-debugging-address=0.0.0.0"
-        ]
-        driver = None
-        # Add headless argument if running headless
-        if isHeadless:
-            arguments.append("--headless=new")
-
-        options = get_chromium_options(browser_path, arguments)
-
-        # Initialize the browser
-        driver = ChromiumPage(addr_or_opts=options)
-        
         logging.info('Starting Visions.ca scraper')
         
         # First, navigate to the main page to bypass Cloudflare if needed
@@ -474,12 +424,13 @@ def main():
         save_to_visions(all_products)
         logging.info(f"Scraping completed! Found {len(all_products)} products.")
         
+        
+        
     except Exception as e:
         logging.error("An error occurred: %s", str(e))
     finally:
         logging.info('Closing the browser.')
-        if driver:
-            driver.quit()
+        driver.quit()
         if isHeadless:
             display.stop()
 
