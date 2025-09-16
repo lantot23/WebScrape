@@ -10,7 +10,6 @@ from DrissionPage import ChromiumPage, ChromiumOptions
 from bs4 import BeautifulSoup
 import psycopg2
 from psycopg2.extras import execute_values
-import shutil, sys
 
 load_dotenv()
 
@@ -337,10 +336,10 @@ def choose_categories(categories):
     for idx, (cat_id, cat_name) in enumerate(categories.items(), start=1):
         print(f"{idx} - {cat_name}")
     
-    #selection = input("Enter the numbers separated by commas (e.g., 0 or 1,3,5): ").strip()
-    selected_ids = ['2']
+    selection = input("Enter the numbers separated by commas (e.g., 0 or 1,3,5): ").strip()
+    selected_ids = []
 
-    if 1 == "0":
+    if selection == "0":
         selected_ids = list(categories.keys())
     else:
         try:
@@ -368,18 +367,18 @@ def main():
         488: "A/C and Cooling",
         5: "Car Tech",
         13: "Wearables",
-        46: "Car Accessories",
+        46: "Cell Accessories",
         18: "Major Appliances",
         19: "Small Appliances"
     }
 
     # Ask user which categories to scrape
-    #categories_to_scrape = choose_categories(categories)
+    categories_to_scrape = choose_categories(categories)
     
     
     if isHeadless:
         from pyvirtualdisplay import Display
-        display = Display(visible=0, size=(1920, 1080))
+        display = Display(visible=0, size=(1366, 768))
         display.start()
 
     browser_path = os.getenv('CHROME_PATH', "/usr/bin/chromium")
@@ -387,36 +386,19 @@ def main():
     arguments = [
         "--no-sandbox",
         "--disable-dev-shm-usage",
-        "--disable-gpu",  # Still disable GPU for stability
-        "--window-size=1920,1080",
-        "--start-maximized",
-        "--disable-extensions",
-        "--disable-background-networking",
-        "--disable-default-apps",
-        "--disable-sync",
-        "--disable-translate",
-        "--disable-features=VizDisplayCompositor",
-        "--disable-web-security",
-        "--disable-notifications",
-        "--disable-popup-blocking",
-        "--disable-prompt-on-repost",
-        "--remote-debugging-port=9222",
-        "--remote-debugging-address=0.0.0.0",
+        "--disable-gpu",
         "--no-first-run",
+        "--force-color-profile=srgb",
         "--metrics-recording-only",
         "--password-store=basic",
         "--use-mock-keychain",
+        "--export-tagged-pdf",
         "--no-default-browser-check",
-        "--user-data-dir=/tmp/chrome-user-data",
-        "--disable-blink-features=AutomationControlled",
-        "--enable-automation",
-        "--disable-features=IsolateOrigins,site-per-process",
-        "--disable-site-isolation-trials",
-        "--lang=en-US",
-        "--allow-running-insecure-content",
-        "--autoplay-policy=no-user-gesture-required",
+        "--disable-background-mode",
+        "--deny-permission-prompts",
+        "--accept-lang=en-US",
+        "--window-size=1366,768",
     ]
-
     
     if isHeadless:
         arguments.append("--headless=new")
@@ -440,12 +422,12 @@ def main():
             cf_bypasser.bypass()
             logging.info("Cloudflare bypass completed!")
         except Exception as e:
-            logging.warning(f"Cloudflare bypass may have failed: {e}")
+            logging.warning(f"Cloudflare bypass failed: {e}")
 
         logging.info("Current Page: %s", driver.title)
         
         # Scrape selected categories
-        for category_id, category_name in categories.items():
+        for category_id, category_name in categories_to_scrape.items():
             try:
                 category_products = scrape_category(driver, category_id, category_name)
                 all_products.extend(category_products)
@@ -453,6 +435,13 @@ def main():
             except Exception as e:
                 logging.error(f"Error scraping category {category_name}: {e}")
 
+        # Save all products to JSON file
+        with open('visions_clearance_products.json', 'w', encoding='utf-8') as f:
+            json.dump(all_products, f, indent=2, ensure_ascii=False)
+        
+        logging.info(f"Scraping completed! Found {len(all_products)} products.")
+        logging.info("Data saved to visions_clearance_products.json")
+        
         save_to_visions(all_products)
         logging.info(f"Scraping completed! Found {len(all_products)} products.")
         
