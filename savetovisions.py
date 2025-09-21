@@ -5,6 +5,10 @@ from psycopg2.extras import execute_values
 import logging
 from datetime import datetime, timezone
 import json
+from dotenv import load_dotenv
+
+
+load_dotenv()
 
 # Helpers
 def extract_model(text: str) -> str:
