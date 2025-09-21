@@ -3,7 +3,7 @@ import re
 import psycopg2
 from psycopg2.extras import execute_values
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 import json
 
 # Helpers
@@ -54,6 +54,7 @@ def save_to_visions(json_data: list[dict]):
                 password=os.getenv("DB_PASS"),
             )
 
+        now = datetime.now(timezone.utc) # UTC timestamp / make sure created_at column is TIMESTAMPTZ
         with conn, conn.cursor() as cur:
             rows = [
                 (
@@ -70,6 +71,8 @@ def save_to_visions(json_data: list[dict]):
                     clean_numeric(item.get("avg_rating")),
                     item.get("main_category"),
                     parse_date(item.get("sale_ends")),
+                    item.get("upc"),
+                    now  # created_at timestamp
                 )
                 for item in json_data
             ]
@@ -81,7 +84,7 @@ def save_to_visions(json_data: list[dict]):
                     url, title, brand, model,
                     current_price, regular_price, percentage_discount, dollar_discount,
                     eco_fee, num_reviews, avg_rating,
-                    main_category, sale_ends
+                    main_category, sale_ends, upc, created_at
                 ) VALUES %s
                 """,
                 rows,
