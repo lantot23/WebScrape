@@ -1,6 +1,6 @@
 import time
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from dotenv import load_dotenv
 import os
 import json
@@ -60,7 +60,8 @@ def save_to_visions(json_data):
         )
 
     cur = conn.cursor()
-
+    cur.execute("TRUNCATE TABLE visions;") # Clear table visions
+    now = datetime.now(timezone.utc) # UTC timestamp / make sure created_at column is TIMESTAMPTZ
     rows = []
     for item in json_data:
         rows.append((
@@ -77,6 +78,8 @@ def save_to_visions(json_data):
             clean_numeric(item.get("avg_rating")),
             item.get("main_category"),
             parse_date(item.get("sale_ends")),
+            item.get("upc"),
+            now  # created_at timestamp
         ))
 
     # Insert or update on conflict (upsert)
@@ -85,7 +88,7 @@ def save_to_visions(json_data):
             url, title, brand, model,
             current_price, regular_price, percentage_discount, dollar_discount,
             eco_fee, num_reviews, avg_rating,
-            main_category, sale_ends
+            main_category, sale_ends, upc, created_at
         ) VALUES %s
         """, rows)
 
@@ -95,6 +98,18 @@ def save_to_visions(json_data):
     conn.close()
 
     logging.info(f"Saved {len(rows)} products to Postgres.")
+
+# Update: Get UPC of item
+def get_upc(driver, url):
+    try:
+        new_tab = driver.new_tab(url)
+        time.sleep(2)
+        upc_ele = new_tab.ele("xpath://strong[contains(text(), 'UPC')]/following-sibling::div")
+        upc = upc_ele.text if upc_ele else "N/A"
+        new_tab.close()
+        return upc
+    except Exception:
+        return "N/A"
 
 
 def get_chromium_options(browser_path: str, arguments: list) -> ChromiumOptions:
@@ -110,7 +125,7 @@ def get_chromium_options(browser_path: str, arguments: list) -> ChromiumOptions:
     return options
 
 
-def extract_product_data(product, category):
+def extract_product_data(product, category, driver):
     """
     Extract product information from a product element.
     """
@@ -146,6 +161,12 @@ def extract_product_data(product, category):
             final_price_span = product.find('span', class_='price-wrapper')
             regular_price = final_price_span.get_text(strip=True) if final_price_span else "N/A"
         
+        # Fix for current_price = regular_price
+        if current_price == "N/A" and regular_price != "N/A":
+            current_price = regular_price
+        elif regular_price == "N/A" and current_price != "N/A":
+            regular_price = current_price
+        
         # Extract discounts
         tier_price = product.find('span', class_='vision-tier-price')
         if tier_price:
@@ -172,6 +193,9 @@ def extract_product_data(product, category):
         # Extract reviews and rating
         reviews_element = product.find('div', class_='pr-category-snippet__total')
         num_reviews = reviews_element.get_text(strip=True).replace('Reviews', '').strip() if reviews_element else "0"
+        if not num_reviews:
+            num_reviews = "0" # Fix for num_reviews set to 0
+
         
         rating_element = product.find('div', class_='pr-snippet-rating-decimal')
         avg_rating = rating_element.get_text(strip=True) if rating_element else "N/A"
@@ -179,6 +203,9 @@ def extract_product_data(product, category):
         # Extract sale end date
         sale_ends_element = product.find('div', class_='rw-grid-date')
         sale_ends = sale_ends_element.get_text(strip=True).replace('Sale Ends: ', '') if sale_ends_element else "N/A"
+        
+        # UPC (opens new tab to get UPC value)
+        upc = get_upc(driver, url) if url != "N/A" else "N/A"
         
         return {
             'url': url,
@@ -193,7 +220,8 @@ def extract_product_data(product, category):
             'num_reviews': num_reviews,
             'avg_rating': avg_rating,
             'main_category': category,
-            'sale_ends': sale_ends
+            'sale_ends': sale_ends,
+            'upc': upc
         }
         
     except Exception as e:
@@ -215,6 +243,7 @@ def print_product_info(product):
     print(f"Rating: {product['avg_rating']} ({product['num_reviews']} reviews)")
     print(f"Sale Ends: {product['sale_ends']}")
     print(f"URL: {product['url']}")
+    print(f"UPC: {product['upc']}") 
     print("="*80)
 
 def scroll_to_load_all_products(driver):
@@ -260,7 +289,7 @@ def scroll_to_load_all_products(driver):
 
         if new_height == last_height:
             scroll_attempts += 1
-            logging.info(f"No new content. Attempt {scroll_attempts}/{max_scroll_attempts}")
+            logging.debug(f"No new content. Attempt {scroll_attempts}/{max_scroll_attempts}")
         else:
             scroll_attempts = 0
             logging.info(f"New content loaded. Scroll height: {new_height}")
@@ -319,7 +348,7 @@ def scrape_category(driver, category_id, category_name):
     for i, product_html in enumerate(product_htmls):
         try:
             soup = BeautifulSoup(product_html, 'html.parser')
-            product_data = extract_product_data(soup, category_name)
+            product_data = extract_product_data(soup, category_name, driver)
             if product_data:
                 products.append(product_data)
                 if i < 1:  # Print product for verification
