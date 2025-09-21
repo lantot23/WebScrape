@@ -23,6 +23,8 @@ def extract_model(text):
 def clean_numeric(val, percent=False):
     if not val or val == "N/A":
         return None
+    if val == "No":
+        return 0
     val = val.replace("$", "").replace(",", "").strip()
     if percent:
         val = val.replace("%", "")
@@ -193,7 +195,7 @@ def extract_product_data(product, category, driver):
         # Extract reviews and rating
         reviews_element = product.find('div', class_='pr-category-snippet__total')
         num_reviews = reviews_element.get_text(strip=True).replace('Reviews', '').strip() if reviews_element else "0"
-        if not num_reviews:
+        if not num_reviews or num_reviews.lower().startswith("No"):
             num_reviews = "0" # Fix for num_reviews set to 0
 
         

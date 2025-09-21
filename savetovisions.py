@@ -20,6 +20,8 @@ def clean_numeric(val: str, percent: bool = False):
     """Convert string to float, stripping $, %, commas."""
     if not val or val == "N/A":
         return None
+    if val == "No":
+        return 0
     val = val.replace("$", "").replace(",", "").strip()
     if percent:
         val = val.replace("%", "")
