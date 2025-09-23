@@ -101,6 +101,104 @@ def save_to_visions(json_data):
 
     logging.info(f"Saved {len(rows)} products to Postgres.")
 
+# Other Helpers
+
+CHECKPOINT_FILE = "checkpoint.json"
+
+def load_checkpoint(categories_to_scrape):
+    if os.path.exists(CHECKPOINT_FILE):
+        with open(CHECKPOINT_FILE, "r") as f:
+            data = json.load(f)
+            if data.get("mode") == "resume":
+                return data
+    # default: restart from scratch
+    checkpoint = {
+        "mode": "resume",
+        "categories": [{"id": cid, "name": cname} for cid, cname in categories_to_scrape.items()],
+        "current_category_index": 0,
+        "current_product_index": 0
+    }
+    save_checkpoint(checkpoint)
+    return checkpoint
+
+def save_checkpoint(data):
+    with open(CHECKPOINT_FILE, "w") as f:
+        json.dump(data, f, indent=2)
+
+def insert_product(product):
+    DATABASE_URL = os.getenv("DATABASE_URL")
+    if DATABASE_URL:
+        conn = psycopg2.connect(DATABASE_URL)
+    else:
+        conn = psycopg2.connect(
+            host=os.getenv("DB_HOST"),
+            port=os.getenv("DB_PORT", 5432),
+            dbname=os.getenv("DB_NAME"),
+            user=os.getenv("DB_USER"),
+            password=os.getenv("DB_PASS"),
+        )
+
+    cur = conn.cursor()
+    now = datetime.now(timezone.utc)
+
+    # check if same URL + category exists already
+    cur.execute("""
+        SELECT id FROM visions WHERE url=%s AND main_category=%s LIMIT 1
+    """, (product["url"], product["main_category"]))
+    existing = cur.fetchone()
+
+    if existing:
+        cur.execute("""
+            UPDATE visions SET
+                title=%s, brand=%s, model=%s,
+                current_price=%s, regular_price=%s, percentage_discount=%s, dollar_discount=%s,
+                eco_fee=%s, num_reviews=%s, avg_rating=%s,
+                sale_ends=%s, upc=%s, created_at=%s
+            WHERE id=%s
+        """, (
+            product["title"], product["brand"],
+            None if product["model"] == "N/A" else product["model"],
+            clean_numeric(product["current_price"]),
+            clean_numeric(product["regular_price"]),
+            clean_numeric(product["percentage_discount"], percent=True),
+            clean_numeric(product["dollar_discount"]),
+            clean_numeric(product["eco_fee"]),
+            clean_numeric(product["num_reviews"]),
+            clean_numeric(product["avg_rating"]),
+            parse_date(product["sale_ends"]),
+            product["upc"],
+            now,
+            existing[0]
+        ))
+    else:
+        cur.execute("""
+            INSERT INTO visions (
+                url, title, brand, model,
+                current_price, regular_price, percentage_discount, dollar_discount,
+                eco_fee, num_reviews, avg_rating,
+                main_category, sale_ends, upc, created_at
+            )
+            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+        """, (
+            product["url"], product["title"], product["brand"],
+            None if product["model"] == "N/A" else product["model"],
+            clean_numeric(product["current_price"]),
+            clean_numeric(product["regular_price"]),
+            clean_numeric(product["percentage_discount"], percent=True),
+            clean_numeric(product["dollar_discount"]),
+            clean_numeric(product["eco_fee"]),
+            clean_numeric(product["num_reviews"]),
+            clean_numeric(product["avg_rating"]),
+            product["main_category"],
+            parse_date(product["sale_ends"]),
+            product["upc"],
+            now
+        ))
+
+    conn.commit()
+    cur.close()
+    conn.close()
+
 # Update: Get UPC of item
 def get_upc(driver, url):
     try:
@@ -403,17 +501,35 @@ def main():
         19: "Small Appliances"
     }
 
-    # Ask user which categories to scrape
-    categories_to_scrape = choose_categories(categories)
-    
-    
+    # --- Check for existing checkpoint ---
+    checkpoint = None
+    if os.path.exists(CHECKPOINT_FILE):
+        with open(CHECKPOINT_FILE, "r") as f:
+            checkpoint = json.load(f)
+        choice = input("Found an interrupted scraping. Continue (C) or start new (N)? ").strip().lower()
+        if choice.startswith("c"):
+            logging.info("Resuming from checkpoint...")
+        else:
+            logging.info("Starting new scrape, overwriting checkpoint.")
+            checkpoint = None
+
+    if checkpoint is None:
+        # Ask user which categories to scrape fresh
+        categories_to_scrape = choose_categories(categories)
+        checkpoint = {
+            "mode": "resume",
+            "categories": [{"id": cid, "name": cname} for cid, cname in categories_to_scrape.items()],
+            "current_category_index": 0,
+            "current_product_index": 0
+        }
+        save_checkpoint(checkpoint)
+
     if isHeadless:
         from pyvirtualdisplay import Display
         display = Display(visible=0, size=(1366, 768))
         display.start()
 
     browser_path = os.getenv('CHROME_PATH', "/usr/bin/chromium")
-    
     arguments = [
         "--no-sandbox",
         "--disable-dev-shm-usage",
@@ -430,56 +546,58 @@ def main():
         "--accept-lang=en-US",
         "--window-size=1366,768",
     ]
-    
     if isHeadless:
         arguments.append("--headless=new")
 
     options = get_chromium_options(browser_path, arguments)
     driver = ChromiumPage(addr_or_opts=options)
-    
-    all_products = []
 
     try:
         logging.info('Starting Visions.ca scraper')
-        logging.info('Navigating to the main page.')
-        logging.info(os.getenv("VISIONSITE"))
         driver.get(os.getenv("VISIONSITE"))
         time.sleep(3)
 
-        # Cloudflare bypass
+        # Try Cloudflare bypass
         try:
-            logging.info('Attempting Cloudflare bypass.')
             cf_bypasser = CloudflareBypasser(driver)
             cf_bypasser.bypass()
             logging.info("Cloudflare bypass completed!")
         except Exception as e:
             logging.warning(f"Cloudflare bypass failed: {e}")
 
-        logging.info("Current Page: %s", driver.title)
-        
-        # Scrape selected categories
-        for category_id, category_name in categories_to_scrape.items():
-            try:
-                category_products = scrape_category(driver, category_id, category_name)
-                all_products.extend(category_products)
-                logging.info(f"Completed scraping {category_name}. Total products so far: {len(all_products)}")
-            except Exception as e:
-                logging.error(f"Error scraping category {category_name}: {e}")
+        # Resume from checkpoint
+        start_cat_idx = checkpoint["current_category_index"]
+        for cat_idx in range(start_cat_idx, len(checkpoint["categories"])):
+            category = checkpoint["categories"][cat_idx]
+            category_id, category_name = category["id"], category["name"]
+            logging.info(f"Scraping category: {category_name}")
 
-        # Save all products to JSON file
-        with open('visions_clearance_products.json', 'w', encoding='utf-8') as f:
-            json.dump(all_products, f, indent=2, ensure_ascii=False)
-        
-        logging.info(f"Scraping completed! Found {len(all_products)} products.")
-        logging.info("Data saved to visions_clearance_products.json")
-        
-        save_to_visions(all_products)
-        logging.info(f"Scraping completed! Found {len(all_products)} products.")
-        
+            products = scrape_category(driver, category_id, category_name)
+
+            start_prod_idx = checkpoint["current_product_index"] if cat_idx == start_cat_idx else 0
+            for prod_idx in range(start_prod_idx, len(products)):
+                product = products[prod_idx]
+                insert_product(product)
+
+                # update checkpoint after each product
+                checkpoint["current_category_index"] = cat_idx
+                checkpoint["current_product_index"] = prod_idx + 1
+                save_checkpoint(checkpoint)
+
+            # after finishing a category, move to next
+            checkpoint["current_category_index"] = cat_idx + 1
+            checkpoint["current_product_index"] = 0
+            save_checkpoint(checkpoint)
+
+        logging.info("Scraping completed for all categories.")
+        # --- Auto-delete checkpoint after success ---
+        if os.path.exists(CHECKPOINT_FILE):
+            os.remove(CHECKPOINT_FILE)
+            logging.info("Checkpoint file deleted (scraping finished successfully).")
+
     except Exception as e:
         logging.error("An error occurred: %s", str(e))
     finally:
-        logging.info('Closing the browser.')
         driver.quit()
         if isHeadless:
             display.stop()
