@@ -116,9 +116,18 @@ def scrape_url_page(tab):
     """Scrape a single product URL page from its tab"""
     tab.wait(10)
 
+    last_height = tab._run_js("return document.body.scrollHeight")
+    while True:
+        tab._run_js("window.scrollTo(0, document.body.scrollHeight);")
+        time.sleep(3)
+        new_height = tab._run_js("return document.body.scrollHeight")
+        if new_height == last_height:
+            break
+        last_height = new_height
+
     sel = Selector(text=tab.html)
 
-    brand = sel.css("p.plp__brandName__8MSID::text").get()
+    brand = sel.css("p.plp__brandName__8MSID a::text").get()
     title = sel.css("h1.plp__pageHeading__zUcEq::text").get()
     rating = sel.css("div.pr-snippet-rating-decimal::text").get()
     review = sel.css("a.pr-snippet-review-count::text").get()
@@ -211,9 +220,14 @@ def scrape_urls_from_file(filename):
 
             try:
                 item = scrape_url_page(tab)
-                scraped_results.append(item)
-                print(f"Scraped: {item['title']} at {url}")
-                save_product(item)
+
+                # Check if necessary fields are empty or None
+                if item.get("title") and item.get("brand"):  # If title and brand are present
+                    scraped_results.append(item)
+                    print(f"Scraped: {item['title']} at {url}")
+                    save_product(item)
+                else:
+                    print(f"Skipping product due to unloaded data:: {url}")
             except Exception as e:
                 print(f"Error scraping {url}: {e}")
             finally:
@@ -231,6 +245,16 @@ def scrape_page(url: str):
     try:
         page.get(url)
 
+        last_height = page._run_js("return document.body.scrollHeight")
+        while True:
+            page._run_js("window.scrollTo(0, document.body.scrollHeight);")
+            time.sleep(3)
+            new_height = page._run_js("return document.body.scrollHeight")
+            if new_height == last_height:
+                break
+            last_height = new_height
+            
+            
         product_grid = page.wait(10).ele('xpath://div[@data-testid="product-grid"]')
         if not product_grid:
             print("Product grid not found")
