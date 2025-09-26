@@ -49,7 +49,12 @@ def save_product(product: dict):
     review = clean_reviews(product.get("review"))
     price = clean_numeric(product.get("price"))
     old_price = clean_numeric(product.get("old_price"))
-
+    if old_price > 0 and price > 0:
+        dollar_discount = old_price - price
+        percentage_discount = (dollar_discount / old_price) * 100
+    else:
+        dollar_discount = 0
+        percentage_discount = 0
     # Default current time if not provided
     scraped_at = product.get("scraped_at") or datetime.now(timezone.utc).isoformat()
 
@@ -75,7 +80,9 @@ def save_product(product: dict):
                     promotion_type = %s,
                     promo_ends = %s,
                     scraped_at = %s,
-                    img_urls = %s
+                    img_urls = %s,
+                    percentage_discount = %s,
+                    dollar_discount = %s
                 WHERE url = %s
                 """
                 cur.execute(update_query, (
@@ -90,6 +97,8 @@ def save_product(product: dict):
                     product.get("promo_ends"),
                     scraped_at,
                     img_urls,
+                    percentage_discount,
+                    dollar_discount,
                     product.get("url")
                 ))
             else:
@@ -98,8 +107,8 @@ def save_product(product: dict):
                 INSERT INTO shoppersdrugmart (
                     bytype, title, brand, rating, review,
                     price, old_price, promotion_type, promo_ends,
-                    url, scraped_at, img_urls
-                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    url, scraped_at, img_urls, percentage_discount, dollar_discount
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 """
                 cur.execute(insert_query, (
                     product.get("type"),
@@ -113,7 +122,9 @@ def save_product(product: dict):
                     product.get("promo_ends"),
                     product.get("url"),
                     scraped_at,
-                    img_urls
+                    img_urls,
+                    percentage_discount,
+                    dollar_discount
                 ))
 
     conn.close()
@@ -134,6 +145,8 @@ def save_product(product: dict):
             promo_ends TIMESTAMP, -- Store promo end date as a timestamp
             scraped_at TIMESTAMP,
             img_urls TEXT[], -- Store image URLs as an array of text
+            percentage_discount DECIMAL(5, 2),
+            dollar_discount DECIMAL(10, 2),
             CONSTRAINT unique_url UNIQUE (url) -- Ensure the URL is unique
         );
 
