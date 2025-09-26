@@ -44,46 +44,99 @@ def save_product(product: dict):
     if isinstance(img_urls, str):  # By Page
         img_urls = [img_urls]
 
+    # Clean numeric and review values
+    rating = clean_numeric(product.get("rating"))
+    review = clean_reviews(product.get("review"))
+    price = clean_numeric(product.get("price"))
+    old_price = clean_numeric(product.get("old_price"))
+
+    # Default current time if not provided
+    scraped_at = product.get("scraped_at") or datetime.now(timezone.utc).isoformat()
+
     with conn:
         with conn.cursor() as cur:
-            cur.execute("""
+            # Check if the product exists by URL
+            check_url_query = """
+                SELECT 1 FROM shoppersdrugmart WHERE url = %s
+            """
+            cur.execute(check_url_query, (product.get('url'),))
+            existing_product = cur.fetchone()
+
+            if existing_product:
+                # Update existing record
+                update_query = """
+                UPDATE shoppersdrugmart
+                SET bytype = %s, title = %s,
+                    brand = %s,
+                    rating = %s,
+                    review = %s,
+                    price = %s,
+                    old_price = %s,
+                    promotion_type = %s,
+                    promo_ends = %s,
+                    scraped_at = %s,
+                    img_urls = %s
+                WHERE url = %s
+                """
+                cur.execute(update_query, (
+                    product.get("type"),
+                    product.get("title"),
+                    product.get("brand"),
+                    rating,
+                    review,
+                    price,
+                    old_price,
+                    product.get("promotion_type"),
+                    product.get("promo_ends"),
+                    scraped_at,
+                    img_urls,
+                    product.get("url")
+                ))
+            else:
+                # Insert new product record
+                insert_query = """
                 INSERT INTO shoppersdrugmart (
-                    type, title, brand, rating, review,
+                    bytype, title, brand, rating, review,
                     price, old_price, promotion_type, promo_ends,
                     url, scraped_at, img_urls
                 ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-            """, (
-                product.get("type"),
-                product.get("title"),
-                product.get("brand"),
-                product.get("rating"),
-                product.get("review"),
-                product.get("price"),
-                product.get("old_price"),
-                product.get("promotion_type"),
-                product.get("promo_ends"),
-                product.get("url"),
-                product.get("scraped_at") or datetime.now(timezone.utc).isoformat(),
-                img_urls
-            ))
+                """
+                cur.execute(insert_query, (
+                    product.get("type"),
+                    product.get("title"),
+                    product.get("brand"),
+                    rating,
+                    review,
+                    price,
+                    old_price,
+                    product.get("promotion_type"),
+                    product.get("promo_ends"),
+                    product.get("url"),
+                    scraped_at,
+                    img_urls
+                ))
+
     conn.close()
+
     """
-    table Schema for the table
+    update table Schema for the table
         CREATE TABLE shoppersdrugmart (
             id SERIAL PRIMARY KEY,
-            type VARCHAR(20),       
+            bytype VARCHAR(50),
+            url VARCHAR(2000),
             title VARCHAR(255),
             brand VARCHAR(255),
-            rating VARCHAR(10),
-            review VARCHAR(50),
-            price VARCHAR(20),
-            old_price VARCHAR(20),
+            rating DECIMAL(3, 1), -- Store rating as a number (e.g., 5.0)
+            review INT, -- Store review count as an integer (e.g., 2)
+            price DECIMAL(10, 2), -- Store price as a number (e.g., 11.05)
+            old_price DECIMAL(10, 2), -- Store old price as a number (e.g., 13.00)
             promotion_type VARCHAR(50),
-            promo_ends TIMESTAMP WITH TIME ZONE,
-            url TEXT,
-            scraped_at TIMESTAMPTZ,
-            img_urls TEXT[]                  -- array of image URLs
+            promo_ends TIMESTAMP, -- Store promo end date as a timestamp
+            scraped_at TIMESTAMP,
+            img_urls TEXT[], -- Store image URLs as an array of text
+            CONSTRAINT unique_url UNIQUE (url) -- Ensure the URL is unique
         );
+
     """
 
 # Helpers
@@ -106,10 +159,28 @@ def parse_promo_date(raw_text):
 
 def extract_price(text: str) -> str | None:
     if not text:
-        return None
+        return "0"
     text = text.strip()
     match = re.search(r"\$\d+(?:\.\d{1,2})?", text)
     return match.group(0) if match else None
+
+def clean_numeric(val):
+    if not val or val == "" or val == "No":
+        return 0
+    val = val.replace("$", "").replace(",", "").strip()
+    try:
+        return float(val)
+    except ValueError:
+        return None
+
+def clean_reviews(val):
+    if not val or val == "":
+        return 0
+    val = val.replace("Reviews", "").replace("Review", "").replace(" ", "").strip()
+    try:
+        return int(val)
+    except ValueError:
+        return None
 
 # Scraping by URLs'
 def scrape_url_page(tab):
@@ -173,8 +244,8 @@ def scrape_url_page(tab):
         "type": "By URL",
         "title": title.strip() if title else None,
         "brand": brand.strip() if brand else None,
-        "rating": rating.strip() if rating else None,
-        "review": review.strip() if review else None,
+        "rating": rating.strip() if rating else "0.0",
+        "review": review.strip() if review else "0",
         "price": price.strip() if price else None,
         "old_price": old_price.strip() if old_price else None,
         "promotion_type": promo_type.strip() if promo_type else None,
@@ -317,8 +388,8 @@ def scrape_page(url: str):
                     "type": "By Page",
                     "title": title,
                     "brand": brand,
-                    "rating": None,
-                    "review": None,
+                    "rating": 0,
+                    "review": 0,
                     "price": price,
                     "old_price": old_price,
                     "promotion_type": promotion_type,
